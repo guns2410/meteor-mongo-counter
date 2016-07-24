@@ -1,5 +1,5 @@
 Package.describe({
-  name: 'mongo-counter',
+  name: 'gunjansoni:mongo-counter',
   version: '0.0.1',
   summary: 'Counters for MongoDB',
   git: 'https://github.com/guns2410/meteor-mongo-counter.git',
