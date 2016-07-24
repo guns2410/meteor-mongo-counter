@@ -1,49 +1,33 @@
-import { Mongo } from 'meteor/mongo';
-import { _ } from 'meteor/underscore';
-
-class MongoCounter {
-  constructor(name) {
-    this.name = name;
-    this.collection = new Mongo.Collection(this.name);
-    this.cachedValues = [];
-  }
-
-  set valueId(val) {
-    if (_.indexOf(this.cachedValues, val) > -1) return true;
-    let initialValue = this.collection.findOne({ _id: val });
-    if (!initialValue) this.collection.insert({ _id: val, next_val: 1 });
-    this.cachedValues.push(val);
-  }
-
-  increment(val, amount) {
-    this.collection.update({ _id: val }, { $inc: { next_val: amount } });
-  }
-
-  decrement(val, amount) {
-    this.collection.update({ _id: val }, { $dec: { next_val: amount } });
-  }
-
-  setValue(val, valueToSet) {
-    this.collection.update({ _id: val }, { $set: { next_val: valueToSet } });
-  }
-}
-
-export const incrementCounter = (collectionId, valueId, amount = 1) => {
-  let collection = new MongoCounter(collectionId);
-  let initialValue = collection.findOne({ _id: valueId }).next_val;
-  collection.increment(valueId, amount);
-  return initialValue;
+const callCounters = async function (collectionName, method, arguments) {
+  let mongo = MongoInternals.defaultRemoteCollectionDriver().mongo;
+  let collection = mongo.rawCollection(collectionName);
+  return await collection[method](...arguments);
 };
 
-export const decrementCounter = (collectionId, valueId, amount = 1) => {
-  let collection = new MongoCounter(collectionId);
-  let initialValue = collection.findOne({ _id: valueId }).next_val;
-  collection.decrement(valueId, amount);
-  return initialValue;
+export const deleteCounters = (collectionName) => (
+  callCounters(collectionName, 'remove', {})
+);
+
+export const incrementCounter = (collectionName, name, amount = 1) => {
+  let doc = callCounters(collectionName, 'findAndModify', [
+    { _id: name },
+    null,
+    { $inc: { next_val: amount } },
+    { new: true, upsert: true },
+  ]).await();
+  return doc.value.next_val;
 };
 
-export const setValue = (collectionId, valueId, valueToSet) => {
-  let collection = new MongoCounter(collectionId);
-  collection.setValue(valueId, valueToSet);
-  return initialValue;
+export const decrementCounter = (collectionName, name, amount = 1) => (
+  incrementCounter(collectionName, name, -amount)
+);
+
+export const setCounter = (collectionName, name, value) => {
+  let doc = callCounters(collectionName, 'findAndModify', [
+    { _id: name },
+    null,
+    { $set: { next_val: value } },
+    { new: true, upsert: true },
+  ]);
+  return doc.next_val;
 };
